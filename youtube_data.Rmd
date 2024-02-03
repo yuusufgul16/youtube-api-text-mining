@@ -1,0 +1,198 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+```{r}
+#Kullanacağımız paketleri yüklüyoruz
+data("stop_words")
+library(tuber)      #YouTube API ile etkileşim kurmak için kullanılmıştır.
+library(httpuv)     #Elde ettiğimiz çıktıları html olarak görmek için kullanılmıştır.
+library(dplyr)      #metin verilerini temizlemek ve manipüle etmek için kullanılmıştır.
+library(ggplot2)    #metin verilerini görselleştirmek için kullanılmıştır.
+library(tibble)     #metin verilerini temizlemek ve manipüle etmek için kullanılmıştır.
+library(magrittr)   #%>% komutu ile zincirleme için kullanılmıştır.
+library(pander)     #istatistiksel özetler oluşturmak için kullanılmıştır.
+library(pastecs)    #çeşitli istatistiksel yöntemler ve özetler sunar
+library(sentimentr) #metin verilerinin duygusal yönünü analiz etmek için kullanılmıştır.
+library(stopwords)  #istenmeyen kelimeleri çıkartmak için kullanılmıştır.
+library(hwordcloud) #kelime bulutu oluşturmak için kullanılmıştır.
+library(wordcloud2) #kelime bulutu oluşturmak için kullanılmıştır.
+library(tidytext)   # metin verilerinden kelimeleri çıkarmak için kullanılmıştır.
+library(stringr)    #metinlerle çalışmayı mümkün olduğunca kolay hale getirmek için kullanılmıştır.
+library(tm)         #metin verilerini işlemek ve analiz etmek için kullanılmıştır.
+```
+```{r}
+#YouTube API’sine erişim sağlamak için tuber adlı bir R paketini kullanıyoruz "yt_oauth" fonksiyonu, YouTube API’sine erişim yetkisi sağlar.
+app_id <- "567072538173-pl92frocjar5146k2utecqvitm2ja7mk.apps.googleusercontent.com"
+app_secret <- "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"
+yt_oauth(app_id, app_secret, token =" ")
+```
+```{r}
+#"get_all_comments" fonksiyonu, belirli bir YouTube videosunun tüm yorumlarını çekmek için kullanıldı.
+video_ids<- c("SN2BZswEWUA","63yr9dlI0cU","kWmX3pd1f10","RzkD_rTEBYs","s0dMTAQM4cw","Sqa8Zo2XWc4","UwsrzCVZAb8")
+comments_list <- lapply(video_ids, function(id) 
+  get_all_comments(video_id = id))
+all_comments <- do.call(rbind, comments_list)
+```
+
+```{r}
+write.csv(all_comments, file = "all_comments.csv", row.names = FALSE)
+```
+
+
+```{r}
+#"write.csv" fonksiyonu, bir veri çerçevesini (data frame) bir CSV dosyasına yazmak için kullanılır. Bu durumda, comments adlı veri çerçevemizi “youtubecomments.csv” adlı bir dosyaya yazıyoruz.
+
+#read.csv fonksiyonu ise bir CSV dosyasını okuyarak bir veri çerçevesine dönüştürür. Bu durumda, “youtubecomments.csv” adlı dosyayı okuyor ve içeriğini datas adlı bir veri çerçevesine atıyoruz.
+
+#Bu iki işlem, verilerimizi diske yazma ve daha sonra tekrar okuma işlemlerini gerçekleştirir. Bu, genellikle verilerimizi saklamak ve daha sonra tekrar kullanmak için yapılır.
+datas <- read.csv("all_comments.csv")
+
+```
+
+```{r}
+datas <- read.csv("all_comments.csv")
+```
+```{r}
+# Kendi durma kelimelerinizi ekleyin
+custom_stop_words <- bind_rows(stop_words, data_frame(word = c("ts","rdj","tony","stark","video","overly", "lot", "day", "dyson", "sun", "lol","pan","bs","just","can","us","isnt", "",  "v🅰️nitus", "a","overly","don’t","dont","iron","robert","youtube","it’s", "stuff","yeah","youre","didnt","doesnt","fuck","shit","bullshit","ultron","fucking"  )))
+```
+
+```{r}
+comments <- datas%>%
+  dplyr::select(textOriginal)
+```
+```{r}
+# Emojileri kaldırmak için bir fonksiyon oluştur
+remove_emoji <- function(x) {
+  return(str_replace_all(x, "[<].*[>]", ""))
+}
+```
+```{r}
+                                               #TEMIZLIK ISLEMLERI
+comment <- comments%>%
+  mutate(word=str_to_lower(textOriginal))%>% unnest_tokens(word, textOriginal) # Metindeki harflerin tamami kucuk harfe donusturulmustur.
+comment <-comment %>% mutate(word=removePunctuation(word)) # Metindeki noktalama işaretleri kaldırılmıştır.
+comment <-comment  %>% mutate(word=str_squish(word)) # Metinle iç içe geçmiş (örnek:yusuf123) rakam ve sayılar metinden ayıklanmıştır.
+comment <-comment  %>% mutate(word=removeNumbers(word)) # Metinden rakam ve sayılar çıkarılmıştır.
+uzatilmis_kelime_deseni <- "([a-z])\\1{2,}" # Uzatılmış kelimeleri bul
+comment$word <- str_replace_all(comment$word, uzatilmis_kelime_deseni, "\\1")# Uzatılmış kelimeleri kaldır
+comment <- comment %>% mutate(word = sapply(word, remove_emoji))#emoji temizle
+comment <- comment %>%
+  mutate(word = str_replace_all(word, "[<].*[>]", ""),#HTML etiketlerini kaldırmak için kullanılır.
+         word = gsub("\uFFFD", "", word, fixed = TRUE),#\uFFFD genellikle bilinmeyen veya tanımlanamayan karakterleri temsil eder.
+         word = gsub("\n", "", word, fixed = TRUE))#her bir kelimenin içindeki yeni satır karakterlerini (\n) siler.
+
+comment <- comment %>% filter(!word %in% custom_stop_words$word) # Durma kelimelerini kaldır
+comment <-comment %>% filter(str_length(word)>3) # Karakter sayısı 3'ten büyük kelimeler filtrelenmiştir. 
+comment <-str_replace(comment$word, "[ı]", "i") # Metin istenmeyen formatta kelimeler varsa ve bu kelimeleri çıkarmanız analize zarar verecekse yerine kelimeler atayabilirsiniz.
+comment <-comment %>% as_tibble()%>%rename(word=value) # Metnin değişiklikler sonra tibble tablo düzenine dönüştürülmüştür.
+```
+```{r}
+# ingilizce olan kelimeler alındı.
+comment <- filter(comment, str_detect(word, "[a-zA-Z]+"))
+```
+
+```{r}
+words <- comment %>%
+  unnest_tokens(word, word) %>%
+  anti_join(custom_stop_words) %>%
+  count(word, sort = TRUE)
+```
+```{r}
+words%>%#ggplot2 kütüphanesinden yararlanarak yatay bir biçimde ilk 20 verimizi görselleştirdik
+  head(20)%>%
+  ggplot(aes(reorder(word, n),n))+
+  geom_col(fill="#5c9aab", alpha=0.6)+
+  coord_flip()+
+  labs(x="Kelimeler",
+       y="Tekrar Edilme Sayısı",
+       title = "EN ÇOK TEKRAR EDİLEN 20 KELİME")+
+  theme_test()
+```
+```{r}
+
+wordcloud2(data = head(words, 100), 
+           minRotation = -pi/6, 
+           maxRotation = -pi/3, 
+           minSize = 0.1, 
+           rotateRatio = 0, 
+           size = .7, 
+           color = "random-dark", 
+           fontWeight = "bold", 
+           fontFamily = "sans")
+```
+```{r}
+# Bing duygu sözlüğünü alın
+bing_sentiments <- get_sentiments("bing")
+
+# Kelimelerinizi duygu değerleriyle birleştirin
+words_sentiments <- words %>%
+  inner_join(bing_sentiments, by = "word")
+
+# Pozitif ve negatif kelimeleri ayırın
+positive_words <- words_sentiments %>%
+  filter(sentiment == "positive") %>%
+  head(100)
+
+negative_words <- words_sentiments %>%
+  filter(sentiment == "negative") %>%
+  head(100)
+```
+
+```{r}
+wordcloud2(positive_words)
+```
+
+```{r}
+wordcloud2(negative_words)
+```
+
+
+```{r}
+words %>%
+  inner_join(get_sentiments("bing")) %>%
+  group_by(sentiment) %>%
+  summarise(n = mean(n)) %>%
+  ggplot(aes(x = sentiment, y = n, fill = sentiment)) +
+  geom_col() +
+  scale_fill_manual(values = c("positive" = "#00bfc4", "negative" = "#f8766d"))+
+  xlab("Duygu") +
+  ylab("Frekans")
+```
+
+
+```{r}
+words %>%
+  inner_join(get_sentiments("bing")) %>%
+  head(20) %>%
+  arrange(-n) %>%
+  group_by(sentiment) %>%
+  ggplot(aes(reorder(word, n), n, color = sentiment)) +
+  geom_line(aes(group = 1)) +
+  geom_point() +
+  facet_wrap(~sentiment, scales = "free_y") +
+  coord_flip() +
+  xlab("Kelime") +
+  ylab("Frekans")
+
+```
+```{r}
+polarite<-sentiment(comment$word)
+stat.desc(polarite$sentiment, basic=T) %>% pander()
+```
+```{r}
+tablo<-cbind(words$word, polarite[,c(3,4)])
+```
+
+```{r}
+
+
+ggplot(tablo, aes(word_count, sentiment)) +
+  geom_point(color="#5c9aab") +
+  geom_hline(yintercept = mean(tablo$sentiment), color="red", size=.5) +
+  labs(y = "Skor", x = "Count") +
+  theme(plot.caption = element_text(hjust = 0, face = "italic"))
+```
+
+
