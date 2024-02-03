@@ -1,4 +1,4 @@
-<h1 align="center">Hi 👋, I'm Yusuf Gül</h1>
+<h1 align="center">Hi 👋, I'm Yusuf Gül.</h1>
 <h3 align="center">Türkiye, Bursa, Bilecik</h3>
 
 - 👨‍💻 All of my projects are available at [https://www.linkedin.com/in/yusufgul/](https://www.linkedin.com/in/yusufgul/)
