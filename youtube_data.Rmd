@@ -23,8 +23,8 @@ library(tm)         #metin verilerini işlemek ve analiz etmek için kullanılm�
 ```
 ```{r}
 #YouTube API’sine erişim sağlamak için tuber adlı bir R paketini kullanıyoruz "yt_oauth" fonksiyonu, YouTube API’sine erişim yetkisi sağlar.
-app_id <- "567072538173-pl92frocjar5146k2utecqvitm2ja7mk.apps.googleusercontent.com"
-app_secret <- "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"
+app_id <- "***********************.apps.googleusercontent.com"
+app_secret <- "***************************"
 yt_oauth(app_id, app_secret, token =" ")
 ```
 ```{r}
